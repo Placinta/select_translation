@@ -8,8 +8,9 @@ Given that the project seems abandoned, I hosted it on github.
 
 It also includes a much better views filter handler that uses left joins instead of correlated (dependent) sub-queries,
 which should prove to work much faster when there are a lot of nodes in the database.
---------
+
 Credits:
+--------
 
 citronica https://drupal.org/user/354488 and citronica's husband for providing the initial port
 
