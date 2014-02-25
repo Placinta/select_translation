@@ -11,7 +11,7 @@ which should prove to work much faster when there are a lot of nodes in the data
 
 Credits:
 --------
-Bit thanks to Alice Heaton for the original D6 module.
+Big thanks to Alice Heaton for the original D6 module.
 https://drupal.org/user/60899
 
 citronica and citronica's husband for providing the initial port to D7.
