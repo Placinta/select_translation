@@ -7,6 +7,7 @@ class select_translation_filter_handler extends views_handler_filter {
     $options = parent::option_definition();
 
     $options['value']['default'] = 'default';
+    $options['priorities']['default'] = '';
 
     return $options;
   }
@@ -46,14 +47,18 @@ class select_translation_filter_handler extends views_handler_filter {
   }
 
   function query() {
+    $default_language = language_default('language');
+    global $language_content;
+    $current_language = $language_content->language;
+
     // Prepare input
     $list = array();
     if ($this->value == 'original') {
       $list = array('current');
-    } 
+    }
     elseif ($this->value == 'default') {
       $list = array('current', 'default');
-    } 
+    }
     elseif (!empty($this->options['priorities'])) {
       $list = explode(',', $this->options['priorities']);
       foreach ($list as $i => $v) {
@@ -63,42 +68,59 @@ class select_translation_filter_handler extends views_handler_filter {
     $list[] = 'original';
     foreach ($list as $i => $v) {
       if ($list[$i] == 'current') {
-        $list[$i] = '***CURRENT_LANGUAGE***';
-      } 
+        $list[$i] = $current_language;
+      }
       elseif ($list[$i] == 'default') {
-        $list[$i] = language_default('language');
+        $list[$i] = $default_language;
       }
     }
     $list = array_unique($list);
-    
-    // Now build the query. For every option, we need to exclude
-    // the previous ones to ensure only one node gets selected in the end.
+
+    // Now build the query.
     $alias = $this->query->ensure_table('node');
-    $query = "node.tnid = 0";
+    $condition_holder = db_or();
+
+    // First include nodes that don't have translations.
+    $condition_holder->condition("$alias.tnid", 0);
+
+    $i = 0;
     $exclude = array();
-    foreach ($list as $i => $v) {
-      if ($v == 'original') {
-        $add = "$alias.nid = $alias.tnid";
-        $exc = "lmfh_node.tnid = lmfh_node.nid";
-      } 
+    // Now go through each language.
+    foreach ($list as $language) {
+      if ($language != 'original') {
+        // Create a views join on the node table, and add it as a relationship.
+        // This is used to find if there are translations of a certain language.
+        $join = new views_join();
+        $sub_query_alias = 'nt' . $i;
+        $extra = "$sub_query_alias.language = '$language'";
+        $join->construct('node', $alias, 'nid', 'tnid', $extra);
+        $this->query->add_relationship($sub_query_alias, $join);
+      }
+
+      if ($language == 'original') {
+        // Include nodes that are the base of a translation (aka original).
+        $and = db_and()->where("$alias.nid = $alias.tnid");
+      }
       else {
-        $add = "$alias.language = '$v'";
-        $exc = "lmfh_node.language = '$v'";
+        // Include nodes of specified language.
+        $and = db_and()->condition("$alias.language", $language);
       }
-      
-      if (count($exclude)) {
-        $add = $add . " AND
-          0 = (SELECT count(lmfh_node.nid)
-                 FROM {node} AS lmfh_node
-                WHERE lmfh_node.tnid = node.tnid AND
-                      ((".implode(') OR (', $exclude).")))";
+
+      // Add the currently processed language only if previous languages were not found.
+      foreach ($exclude as $e) {
+        $and->where($e);
       }
-      $exclude[] = $exc;
-        
-      $query = $query . "\n OR ($add)";
+      $condition_holder->condition($and);
+
+      // Add to excludes the currently processed translation language.
+      if (isset($sub_query_alias)) {
+        $exclude[] = $sub_query_alias . '.nid IS NULL';
+      }
+      $i++;
     }
-    
-    $this->query->add_where_expression($this->options['group'], $query);
+
+    // Add in the conditions.
+    $this->query->add_where($this->options['group'], $condition_holder);
   }
 }
 
