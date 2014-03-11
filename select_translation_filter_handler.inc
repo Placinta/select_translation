@@ -8,7 +8,7 @@ class select_translation_filter_handler extends views_handler_filter {
 
     $options['value']['default'] = 'default';
     $options['priorities']['default'] = '';
-
+    $options['default_language_only']['default'] = 0;
     return $options;
   }
 
@@ -30,12 +30,12 @@ class select_translation_filter_handler extends views_handler_filter {
     $form['priorities'] = array(
       '#type' => 'textfield',
       '#title' => t('Language priorities'),
-      '#description' => t('If selection mode is set to "Choose language priorities", 
-                           you can enter here a comma separated list of language codes. 
+      '#description' => t('If selection mode is set to "Choose language priorities",
+                           you can enter here a comma separated list of language codes.
                            The filter will then return the node in the first available langauge
                            in that list ; and the original version if no match were found.<br/><br/>
                            The special value "current" will be replaced with the current language,
-                           "default" will be replaced witht the default language, 
+                           "default" will be replaced with the default language,
                            and "original" with the original language of each node.
                            <br/><br/>
                            Example:<br/><em>en,fr,current,default,original</em><br/>
@@ -44,31 +44,47 @@ class select_translation_filter_handler extends views_handler_filter {
                            If none are available it will return the original version.'),
       '#default_value' => !empty($this->options['priorities']) ? $this->options['priorities'] : '',
     );
+
+    $form['default_language_only'] = array(
+      '#type' => 'checkbox',
+      '#title' => t('Display default language content *only*, if the currently selected user language is the default site language.'),
+      '#description' => t("When you check this option, the order chosen above will be ignored when current language = site default language, instead it will only show translations for the default language. "),
+      '#default_value' => !empty($this->options['default_language_only']) ? $this->options['default_language_only'] : 0,
+    );
   }
 
   /*
    * A query that doesn't use correlated sub-queries, thus executing faster for larger data sets.
    */
   function better_query() {
-    $default_language = language_default('language');
     global $language_content;
+    $default_language = language_default('language');
     $current_language = $language_content->language;
 
-    // Prepare input
-    $list = array();
-    if ($this->value == 'original') {
-      $list = array('current');
+
+
+    // Limit the language list to default only, if the option was selected and default_language == current_language.
+    if ($this->options['default_language_only'] && $default_language == $current_language) {
+      $list = array('default');
     }
-    elseif ($this->value == 'default') {
-      $list = array('current', 'default');
-    }
-    elseif (!empty($this->options['priorities'])) {
-      $list = explode(',', $this->options['priorities']);
-      foreach ($list as $i => $v) {
-        $list[$i] = strtolower(trim($v));
+    // Otherwise prepare the language order list.
+    else {
+      $list = array();
+      if ($this->value == 'original') {
+        $list = array('current');
       }
+      elseif ($this->value == 'default') {
+        $list = array('current', 'default');
+      }
+      elseif (!empty($this->options['priorities'])) {
+        $list = explode(',', $this->options['priorities']);
+        foreach ($list as $i => $v) {
+          $list[$i] = strtolower(trim($v));
+        }
+      }
+      $list[] = 'original';
     }
-    $list[] = 'original';
+
     foreach ($list as $i => $v) {
       if ($list[$i] == 'current') {
         $list[$i] = $current_language;
@@ -80,7 +96,9 @@ class select_translation_filter_handler extends views_handler_filter {
     $list = array_unique($list);
 
     // Now build the query.
-    $alias = $this->query->ensure_table('node');
+    $query = $this->query;
+    /* @var $query views_plugin_query_default */
+    $alias = $query->ensure_table('node');
     $condition_holder = db_or();
 
     // First include nodes that don't have translations.
@@ -97,10 +115,19 @@ class select_translation_filter_handler extends views_handler_filter {
         $join = new views_join();
         $add_new_join = TRUE;
         $sub_query_alias = 'nt' . $i;
-        $extra = "$sub_query_alias.language = '$language'";
-        $join->construct('node', $alias, 'nid', 'tnid', $extra);
-        $query = $this->query;
-        /* @var $query views_plugin_query_default */
+
+        // Because domain module uses node_access, and rewrites the query to add exists clauses for each left joined
+        // node table (maybe specific to all node access modules), thus breaking the listing, we wrap the table in a
+        // sub-query, avoiding the exists clause.
+        // @TODO Maybe add this in permanently, so it works even when simple node access is enabled?
+        if (module_exists('domain')) {
+          $this->node_access_join($join, $language, $alias, $sub_query_alias);
+        }
+        else {
+          $this->default_join($join, $language, $alias, $sub_query_alias);
+        }
+
+        // Add the join as a relationship.
         $query->add_relationship($sub_query_alias, $join, 'node');
       }
 
@@ -127,7 +154,34 @@ class select_translation_filter_handler extends views_handler_filter {
     }
 
     // Add in the conditions.
-    $this->query->add_where($this->options['group'], $condition_holder);
+    $query->add_where($this->options['group'], $condition_holder);
+  }
+
+  /**
+   * @param $join views_join
+   * @param $language
+   * @param $alias
+   * @param $sub_query_alias
+   */
+  function node_access_join(&$join, $language, $alias, $sub_query_alias) {
+    $sub_query = db_select('node', $sub_query_alias);
+    $sub_query->addField($sub_query_alias, 'nid');
+    $sub_query->addField($sub_query_alias, 'tnid');
+    $extra = "$sub_query_alias.language = '$language'";
+    $sub_query->where($extra);
+
+    $join->construct($sub_query, $alias, 'tnid', 'tnid');
+  }
+
+  /**
+   * @param $join views_join
+   * @param $language
+   * @param $alias
+   * @param $sub_query_alias
+   */
+  function default_join(&$join, $language, $alias, $sub_query_alias) {
+    $extra = "$sub_query_alias.language = '$language'";
+    $join->construct('node', $alias, 'tnid', 'tnid', $extra);
   }
 
   function query() {
@@ -160,13 +214,16 @@ class select_translation_filter_handler extends views_handler_filter {
     }
     $list = array_unique($list);
 
+    $views_query = $this->query;
+    /* @var $views_query views_plugin_query_default */
+
     // Now build the query. For every option, we need to exclude
     // the previous ones to ensure only one node gets selected in the end.
-    $alias = $this->query->ensure_table('node');
+    $alias = $views_query->ensure_table('node');
     // First include nodes that don't have translations.
     $query = "node.tnid = 0";
     $exclude = array();
-    foreach ($list as $i => $v) {
+    foreach ($list as $v) {
       if ($v == 'original') {
         // Include nodes that are the base of a translation (aka original).
         $add = "$alias.nid = $alias.tnid";
@@ -190,7 +247,6 @@ class select_translation_filter_handler extends views_handler_filter {
       $query = $query . "\n OR ($add)";
     }
 
-    $this->query->add_where_expression($this->options['group'], $query);
+    $views_query->add_where_expression($this->options['group'], $query);
   }
 }
-
