@@ -9,6 +9,7 @@ class select_translation_filter_handler extends views_handler_filter {
     $options['value']['default'] = 'default';
     $options['priorities']['default'] = '';
     $options['default_language_only']['default'] = 0;
+    $options['include_content_without_translation']['default'] = 1;
     return $options;
   }
 
@@ -49,8 +50,18 @@ class select_translation_filter_handler extends views_handler_filter {
     $form['default_language_only'] = array(
       '#type' => 'checkbox',
       '#title' => t('Display default language content *only*, if the currently selected user language is the default site language.'),
-      '#description' => t("When you check this option, the order chosen above will be ignored when current language = site default language, instead it will only show translations for the default language. "),
+      '#description' => t("When you check this option, the order chosen above will be ignored when current language = site default language,
+        instead it will only show translations for the default language. "),
       '#default_value' => !empty($this->options['default_language_only']) ? $this->options['default_language_only'] : 0,
+    );
+
+    $form['include_content_without_translation'] = array(
+      '#type' => 'checkbox',
+      '#title' => t('Include content that does not have translations, aka it does not belong to a translation set (tnid = 0)'),
+      '#description' => t('Sometimes you have content that is created originally in another language than English (e.g. Chinese)
+        and it does not have translations, hence it does not belong to a translation set. With this option checked,
+        the Chinese content will appear regardless of current language.'),
+      '#default_value' => !empty($this->options['include_content_without_translation']) ? $this->options['include_content_without_translation'] : 0,
     );
   }
 
@@ -102,8 +113,10 @@ class select_translation_filter_handler extends views_handler_filter {
     $alias = $query->ensure_table('node');
     $condition_holder = db_or();
 
-    // First include nodes that don't have translations.
-    $condition_holder->condition("$alias.tnid", 0);
+    // First include nodes that don't have translations, if option was checked.
+    if ($this->options['include_content_without_translation']) {
+      $condition_holder->condition("$alias.tnid", 0);
+    }
 
     $i = 0;
     $exclude = array();
