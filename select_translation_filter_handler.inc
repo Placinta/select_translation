@@ -23,7 +23,7 @@ class select_translation_filter_handler extends views_handler_filter {
       '#options' => array(
         'original' => t('Use current language ; if not available use original language'),
         'default'  => t('Use current language ; if not available use default language ; if not available use original language'),
-        'list'     => t('Choose language priorities below:'),
+        'list'     => t('Choose language priorities'),
       ),
       '#default_value' => $this->value,
     );
@@ -43,6 +43,7 @@ class select_translation_filter_handler extends views_handler_filter {
                            if not in the current language, if not in the default language.
                            If none are available it will return the original version.'),
       '#default_value' => !empty($this->options['priorities']) ? $this->options['priorities'] : '',
+      '#dependency' => array('radio:options[value]' => array('list')),
     );
 
     $form['default_language_only'] = array(
