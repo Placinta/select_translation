@@ -181,10 +181,10 @@ class select_translation_filter_handler extends views_handler_filter {
     $sub_query = db_select('node', $sub_query_alias);
     $sub_query->addField($sub_query_alias, 'nid');
     $sub_query->addField($sub_query_alias, 'tnid');
-    $extra = "$sub_query_alias.language = '$language' AND $alias.tnid != 0";
+    $extra = "$sub_query_alias.language = '$language'";
     $sub_query->where($extra);
 
-    $join->construct($sub_query, $alias, 'tnid', 'tnid');
+    $join->construct($sub_query, $alias, 'tnid', 'tnid', "$alias.tnid != 0");
   }
 
   /**
