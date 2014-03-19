@@ -5,7 +5,7 @@ dependencies[] = views
 files[] = select_translation.module
 files[] = select_translation_filter_handler.inc
 files[] = select_translation.views.inc
-package = Multilanguage
+package = Multilingual
 core = 7.x
 
 

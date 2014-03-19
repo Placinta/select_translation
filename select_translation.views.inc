@@ -7,6 +7,7 @@
 
 function select_translation_views_data_alter(&$cache) {
   $cache['node']['select_translation'] = array(
+    'group' => t('Content translation'),
     'title' => t('Select translation'),
     'help' => t('For all the nodes representing a translation of the same content, only display one of the nodes'),
     'filter' => array(
