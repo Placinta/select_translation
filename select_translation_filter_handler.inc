@@ -133,13 +133,7 @@ class select_translation_filter_handler extends views_handler_filter {
         // Because domain module uses node_access, and rewrites the query to add exists clauses for each left joined
         // node table (maybe specific to all node access modules), thus breaking the listing, we wrap the table in a
         // sub-query, avoiding the exists clause.
-        // @TODO Maybe add this in permanently, so it works even when simple node access is enabled?
-        if (module_exists('domain')) {
-          $this->node_access_join($join, $language, $alias, $sub_query_alias);
-        }
-        else {
-          $this->default_join($join, $language, $alias, $sub_query_alias);
-        }
+        $this->node_access_join($join, $language, $alias, $sub_query_alias);
 
         // Add the join as a relationship.
         $query->add_relationship($sub_query_alias, $join, 'node');
