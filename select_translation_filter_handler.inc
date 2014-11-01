@@ -3,6 +3,15 @@ class select_translation_filter_handler extends views_handler_filter {
   // Don't display empty space where the operator would be.
   var $no_operator = TRUE;
 
+  function admin_summary() {
+    $options = array(
+      'original' => t('Original language fallback'),
+      'default' => t('Default site language fallback'),
+      'list' => t('Custom fallback priority'),
+    );
+    return $options[$this->value];
+  }
+
   function option_definition() {
     $options = parent::option_definition();
 
