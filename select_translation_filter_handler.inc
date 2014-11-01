@@ -1,8 +1,23 @@
 <?php
+/**
+ * @file
+ * Views select translation filter handler.
+ */
+
+// @ignore sniffer_namingconventions_validclassname_startwithcaptial:file
+// @ignore style_class_names:file
+
+// @ignore comment_comment_docblock_missing
 class select_translation_filter_handler extends views_handler_filter {
+  // @ignore sniffer_namingconventions_validfunctionname_notlowercamel:class
+
   // Don't display empty space where the operator would be.
+  // @ignore sniffer_namingconventions_validvariablename_lowercamelname
   var $no_operator = TRUE;
 
+  /**
+   * Returns admin summary of the filter options.
+   */
   function admin_summary() {
     $options = array(
       'original' => t('Original language fallback'),
@@ -12,6 +27,9 @@ class select_translation_filter_handler extends views_handler_filter {
     return $options[$this->value];
   }
 
+  /**
+   * Returns an array of filter option defaults.
+   */
   function option_definition() {
     $options = parent::option_definition();
 
@@ -23,10 +41,16 @@ class select_translation_filter_handler extends views_handler_filter {
     return $options;
   }
 
+  /**
+   * Returns the operator form.
+   */
   function operator_form(&$form, &$form_state) {
     $form['operator'] = array();
   }
 
+  /**
+   * Returns a form with configurable options.
+   */
   function value_form(&$form, &$form_state) {
     $form['value'] = array(
       '#type' => 'radios',
@@ -68,7 +92,7 @@ class select_translation_filter_handler extends views_handler_filter {
     $form['include_content_without_translation'] = array(
       '#type' => 'checkbox',
       '#title' => t('Include content that does not have translations, aka it does not belong to a translation set (tnid = 0)'),
-      '#description' => t('Sometimes you have content that is created originally in another language than English (e.g. Chinese)
+      '#description' => t('Sometimes you have content that is created originally in another language than English (e.g., Chinese)
         and it does not have translations, hence it does not belong to a translation set. With this option checked,
         the Chinese content will appear regardless of current language.'),
       '#default_value' => !empty($this->options['include_content_without_translation']) ? $this->options['include_content_without_translation'] : 0,
@@ -82,17 +106,18 @@ class select_translation_filter_handler extends views_handler_filter {
     );
   }
 
-  /*
-   * A query that doesn't use correlated sub-queries, thus executing faster for larger data sets.
+  /**
+   * A query that doesn't use correlated sub-queries.
+   *
+   * Thus executing faster for larger data sets.
    */
   function better_query() {
     global $language_content;
     $default_language = language_default('language');
     $current_language = $language_content->language;
 
-
-
-    // Limit the language list to default only, if the option was selected and default_language == current_language.
+    // Limit the language list to default only, if the option was selected and
+    // default_language == current_language.
     if ($this->options['default_language_only'] && $default_language == $current_language) {
       $list = array('default');
     }
@@ -147,9 +172,10 @@ class select_translation_filter_handler extends views_handler_filter {
         $add_new_join = TRUE;
         $sub_query_alias = 'nt' . $i;
 
-        // Because domain module uses node_access, and rewrites the query to add exists clauses for each left joined
-        // node table (maybe specific to all node access modules), thus breaking the listing, we wrap the table in a
-        // sub-query, avoiding the exists clause.
+        // Because domain module uses node_access, and rewrites the query to add
+        // exists clauses for each left joined node table (maybe specific to all
+        // node access modules), thus breaking the listing, we wrap the table in
+        // a sub-query, avoiding the exists clause.
         $this->node_access_join($join, $language, $alias, $sub_query_alias);
 
         // Add the join as a relationship.
@@ -165,7 +191,8 @@ class select_translation_filter_handler extends views_handler_filter {
         $and = db_and()->condition("$alias.language", $language);
       }
 
-      // Add the currently processed language only if previous languages were not found.
+      // Add the currently processed language only if previous languages were
+      // not found.
       foreach ($exclude as $e) {
         $and->where($e);
       }
@@ -174,7 +201,7 @@ class select_translation_filter_handler extends views_handler_filter {
       // Add to excludes the currently processed translation language.
       if (isset($sub_query_alias) && $add_new_join) {
         $exclude[] = $sub_query_alias . '.nid IS NULL';
-        $i++;
+        ++$i;
       }
     }
 
@@ -205,10 +232,15 @@ class select_translation_filter_handler extends views_handler_filter {
    * Join to the node table where the nodes have the given language.
    *
    * @param views_join $join
-   * @param $language
-   * @param $alias
-   * @param $sub_query_alias
+   *   The views join object.
+   * @param string $language
+   *   The language of the nodes that should be retrieved.
+   * @param string $alias
+   *   The alias of the main node table.
+   * @param string $sub_query_alias
+   *   The alias of the sub query node table.
    * @param string $extra
+   *   A string with extra join conditions.
    */
   function node_access_join(&$join, $language, $alias, $sub_query_alias, $extra = NULL) {
     $sub_query = db_select('node', $sub_query_alias);
@@ -228,22 +260,26 @@ class select_translation_filter_handler extends views_handler_filter {
   }
 
   /**
-   * @param $join views_join
-   * @param $language
-   * @param $alias
-   * @param $sub_query_alias
+   * The default join is currently not used.
    */
   function default_join(&$join, $language, $alias, $sub_query_alias) {
     $extra = "$sub_query_alias.language = '$language' AND $alias.tnid != 0";
+    /* @var $join views_join */
     $join->construct('node', $alias, 'tnid', 'tnid', $extra);
   }
 
-  function query() {
+  /**
+   * Executes the query.
+   */
+  public function query() {
     $this->better_query();
   }
 
+  /**
+   * This was the original correlated query, which is currently not used.
+   */
   function original_query() {
-    // Prepare input
+    // Prepare input.
     $list = array();
     if ($this->value == 'original') {
       $list = array('current');
@@ -294,7 +330,7 @@ class select_translation_filter_handler extends views_handler_filter {
           0 = (SELECT count(lmfh_node.nid)
                  FROM {node} AS lmfh_node
                 WHERE lmfh_node.tnid = node.tnid AND
-                      ((".implode(') OR (', $exclude).")))";
+                      ((" . implode(') OR (', $exclude) . ")))";
       }
       $exclude[] = $exc;
 

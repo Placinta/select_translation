@@ -1,10 +1,12 @@
 <?php
-
 /**
  * @file
- * Implementation of hook_views_data_alter()
+ * Views related hooks.
  */
 
+/**
+ * Implements hook_views_data_alter().
+ */
 function select_translation_views_data_alter(&$cache) {
   $cache['node']['select_translation'] = array(
     'group' => t('Content translation'),
@@ -14,12 +16,10 @@ function select_translation_views_data_alter(&$cache) {
       'handler' => 'select_translation_filter_handler',
     ),
   );
-  
-  // return $data;
 }
 
 /**
- * Implementation of hook_views_handlers
+ * Implements hook_views_handlers().
  */
 function select_translation_views_handlers() {
   return array(
@@ -33,4 +33,3 @@ function select_translation_views_handlers() {
     ),
   );
 }
-
