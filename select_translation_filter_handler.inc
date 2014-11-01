@@ -19,6 +19,7 @@ class select_translation_filter_handler extends views_handler_filter {
     $options['priorities']['default'] = '';
     $options['default_language_only']['default'] = 0;
     $options['include_content_without_translation']['default'] = 1;
+    $options['include_content_with_unpublished_translation']['default'] = 0;
     return $options;
   }
 
@@ -71,6 +72,13 @@ class select_translation_filter_handler extends views_handler_filter {
         and it does not have translations, hence it does not belong to a translation set. With this option checked,
         the Chinese content will appear regardless of current language.'),
       '#default_value' => !empty($this->options['include_content_without_translation']) ? $this->options['include_content_without_translation'] : 0,
+    );
+
+    $form['include_content_with_unpublished_translation'] = array(
+      '#type' => 'checkbox',
+      '#title' => t('Return content in the site default language when a translation for the current language *does* exist, but it is unpublished.'),
+      '#description' => t('When you check this option, in addition to the order chosen above, content will be shown in the default site language in the event that the translation in the current language is unpublished.'),
+      '#default_value' => !empty($this->options['include_content_with_unpublished_translation']) ? $this->options['include_content_with_unpublished_translation'] : 0,
     );
   }
 
@@ -170,24 +178,53 @@ class select_translation_filter_handler extends views_handler_filter {
       }
     }
 
+    // Include site default nodes in place of unpublished translations.
+    if ($this->options['include_content_with_unpublished_translation']) {
+      $sub_query_alias = 'nt' . $i;
+      $join = new views_join();
+
+      // Join with the currently selected language.
+      $this->node_access_join($join, $current_language, 'node', $sub_query_alias);
+
+      // Add the join as a relationship.
+      $query->add_relationship($sub_query_alias, $join, 'node');
+
+      // The default language node will be selected, if the current language
+      // (translated) node is unpublished.
+      $condition_holder->condition(db_and()
+        ->condition("$alias.language", $default_language)
+        ->condition("$sub_query_alias.status", NODE_NOT_PUBLISHED)
+      );
+    }
+
     // Add in the conditions.
     $query->add_where($this->options['group'], $condition_holder);
   }
 
   /**
-   * @param $join views_join
+   * Join to the node table where the nodes have the given language.
+   *
+   * @param views_join $join
    * @param $language
    * @param $alias
    * @param $sub_query_alias
+   * @param string $extra
    */
-  function node_access_join(&$join, $language, $alias, $sub_query_alias) {
+  function node_access_join(&$join, $language, $alias, $sub_query_alias, $extra = NULL) {
     $sub_query = db_select('node', $sub_query_alias);
     $sub_query->addField($sub_query_alias, 'nid');
     $sub_query->addField($sub_query_alias, 'tnid');
-    $extra = "$sub_query_alias.language = '$language'";
-    $sub_query->where($extra);
+    $sub_query->addfield($sub_query_alias, 'status');
+    $sub_query->addField($sub_query_alias, 'language');
+    $sub_query->where("$sub_query_alias.language = '$language'");
 
-    $join->construct($sub_query, $alias, 'tnid', 'tnid', "$alias.tnid != 0");
+    // If not extra argument was sent, use the default one.
+    if ($extra === NULL) {
+      // Nodes have translations when translation id is different from 0.
+      $extra = "$alias.tnid != 0";
+    }
+
+    $join->construct($sub_query, $alias, 'tnid', 'tnid', $extra);
   }
 
   /**
